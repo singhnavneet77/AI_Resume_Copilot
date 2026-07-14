@@ -68,3 +68,7 @@ next-env.d.ts
 .DS_Store
 Thumbs.db
 *.pem
+
+# Document files
+AI_Resume_Copilot_Full_SRS.pdf
+
