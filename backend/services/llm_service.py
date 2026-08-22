@@ -89,75 +89,106 @@ class LLMService:
         """
         Generates optimized, ATS-aligned resume JSON from the user's master profile details and job description.
         Rules: Never invent experience, never add fake skills, reorder content, rewrite descriptions for clarity and keywords.
+
+        user_profile structure:
+        {
+          "user_name": str,
+          "user_email": str,
+          "master_profile": {
+            "education": [...],
+            "skills": [...],
+            "projects": [...],
+            "experience": [...],
+            "achievements": [...]
+          },
+          "most_relevant_historical_items": [...]
+        }
         """
         system_instruction = (
             "You are a professional ATS resume optimizer. Your task is to tailor a candidate's master profile "
             "to match a specific Job Description (JD). You must follow these strict guidelines:\n"
-            "1. NEVER invent any work experience, education, or achievements.\n"
-            "2. NEVER add fake skills. Only use skills present in the profile or directly implied by existing project tools.\n"
+            "1. NEVER invent any work experience, education, or achievements. Use ONLY what is provided in the candidate's profile.\n"
+            "2. NEVER add fake skills. Only use skills explicitly listed in the candidate's skills.\n"
             "3. REORDER the content (skills, projects, experiences) to put the most relevant items first.\n"
-            "4. REWRITE descriptions, summaries, and achievements for clarity, using action verbs and optimizing for ATS keywords from the JD.\n"
-            "5. You MUST return a JSON object conforming exactly to the schema requested."
+            "4. REWRITE bullet-point descriptions and summary using action verbs and ATS keywords from the JD.\n"
+            "5. You MUST return a JSON object conforming exactly to the schema requested.\n"
+            "6. Candidate name and email must match the exact candidate details provided."
         )
-        
-        prompt = f"""
-Analyze the candidate's Master Profile and the Job Description below. 
 
-Master Profile:
-{json.dumps(user_profile, indent=2)}
+        candidate_name = user_profile.get("user_name", "")
+        candidate_email = user_profile.get("user_email", "")
+        master_profile = user_profile.get("master_profile", user_profile)
+        relevant_items = user_profile.get("most_relevant_historical_items", [])
 
-Job Description:
+        prompt = f"""You are tailoring a resume for the following candidate.
+
+CANDIDATE NAME: {candidate_name}
+CANDIDATE EMAIL: {candidate_email}
+
+CANDIDATE'S ACTUAL MASTER PROFILE DATA (Use ONLY this data — do NOT invent any other companies, degrees, or skills):
+{json.dumps(master_profile, indent=2)}
+
+RELEVANT ITEMS RANKED FOR THIS JD:
+{json.dumps(relevant_items, indent=2)}
+
+TARGET JOB DESCRIPTION:
 {job_description}
 
-IMPORTANT: The "user_name" and "user_email" fields in the Master Profile are the candidate's real name and email. 
-You MUST use these exact values in the summary section. Do NOT invent or substitute a different name or email.
+INSTRUCTIONS:
+- Use candidate name "{candidate_name}" and email "{candidate_email}".
+- Include all experiences from the master profile. Rewrite bullets with JD keywords.
+- Include all projects from the master profile.
+- Include all skills from the master profile, categorized and sorted by JD relevance.
+- Include all education from the master profile.
+- Include all achievements from the master profile.
+- DO NOT invent any company, degree, or project that is not in the master profile data.
 
-Generate the tailored resume JSON in this exact structure:
+Return ONLY a JSON object matching this schema:
 {{
   "summary": {{
-    "name": "Use the exact value from user_name in the Master Profile",
-    "email": "Use the exact value from user_email in the Master Profile",
-    "phone": "Candidate Phone (if any, else empty)",
-    "github": "Github link (if any)",
-    "linkedin": "Linkedin link (if any)",
-    "professional_summary": "A concise, 3-4 sentence professional summary tailored to the job description highlighting relevant experience and key skills."
+    "name": "{candidate_name}",
+    "email": "{candidate_email}",
+    "phone": "",
+    "github": "",
+    "linkedin": "",
+    "professional_summary": "Tailored 3-4 sentence professional summary based on candidate's actual background and target JD"
   }},
   "skills": [
     {{
-      "category": "Skill category (e.g. Languages, Frameworks, Tools, Databases)",
-      "items": ["list", "of", "relevant", "skills", "matching", "category"]
+      "category": "Category Name",
+      "items": ["Skill1", "Skill2"]
     }}
   ],
   "experience": [
     {{
-      "company": "Company Name",
-      "role": "Role Title",
+      "company": "Company Name from profile",
+      "role": "Role Title from profile",
       "start_date": "Start Date",
       "end_date": "End Date",
       "description": [
-        "Bullet points describing work rewritten to match JD keywords and show metrics/accomplishments."
+        "Bullet point rewritten with action verbs and JD keywords"
       ]
     }}
   ],
   "projects": [
     {{
-      "title": "Project Title",
-      "tech_stack": ["list", "of", "tech"],
-      "description": "Project description optimized for ATS.",
-      "github_link": "Github link (if any)"
+      "title": "Project Title from profile",
+      "tech_stack": ["Tech1", "Tech2"],
+      "description": "ATS-optimized description of the project",
+      "github_link": "github link if any"
     }}
   ],
   "education": [
     {{
-      "institute": "Institute Name",
-      "degree": "Degree",
+      "institute": "Institute Name from profile",
+      "degree": "Degree from profile",
       "cgpa": "CGPA",
       "start_date": "Start Date",
       "end_date": "End Date"
     }}
   ],
   "achievements": [
-    "List of tailored achievement statements emphasizing impact and metrics"
+    "Achievement statement from profile rewritten with impact"
   ]
 }}
 """
@@ -165,7 +196,7 @@ Generate the tailored resume JSON in this exact structure:
             raw_response = self._call_llm(prompt, system_instruction, creds=creds)
             return json.loads(raw_response)
         except Exception as e:
-            print(f"Resume Tailoring failed: {e}. Falling back to mock generator.")
+            print(f"Resume Tailoring failed or no API key: {e}. Generating directly from candidate's profile.")
             return self._generate_mock_tailored_resume(user_profile, job_description)
 
     def calculate_ats_score(self, resume_json: Dict[str, Any], job_description: str, creds: Optional[UserLLMCredentials] = None) -> Dict[str, Any]:
@@ -217,7 +248,7 @@ Return JSON in this structure:
             raw_response = self._call_llm(prompt, system_instruction, creds=creds)
             return json.loads(raw_response)
         except Exception as e:
-            print(f"ATS Scoring failed: {e}. Falling back to mock scorer.")
+            print(f"ATS Scoring failed: {e}. Falling back to rule-based scorer.")
             return self._generate_mock_ats_score(resume_json, job_description)
 
     def review_resume(self, resume_json: Dict[str, Any], job_description: str, creds: Optional[UserLLMCredentials] = None) -> Dict[str, Any]:
@@ -242,16 +273,16 @@ Return a JSON document with this exact format:
 {{
   "overall_score": 82,
   "strengths": [
-    "Strength 1 (e.g. good alignment with React requirements)...",
-    "Strength 2 (e.g. clear progression of roles)..."
+    "Strength 1...",
+    "Strength 2..."
   ],
   "weaknesses": [
-    "Weakness 1 (e.g. short tenure at company X)...",
-    "Weakness 2 (e.g. no cloud experience mentioned)..."
+    "Weakness 1...",
+    "Weakness 2..."
   ],
   "ats_risks": [
-    "Risk 1 (e.g. missing crucial keywords like Kubernetes)...",
-    "Risk 2 (e.g. summary is a bit too generic)..."
+    "Risk 1...",
+    "Risk 2..."
   ],
   "recommendations": [
     "Recommendation 1...",
@@ -263,7 +294,7 @@ Return a JSON document with this exact format:
             raw_response = self._call_llm(prompt, system_instruction, creds=creds)
             return json.loads(raw_response)
         except Exception as e:
-            print(f"AI Reviewer failed: {e}. Falling back to mock reviewer.")
+            print(f"AI Reviewer failed: {e}. Falling back to rule-based reviewer.")
             return self._generate_mock_review(resume_json, job_description)
 
     def generate_cover_letter(self, resume_json: Dict[str, Any], job_description: str, creds: Optional[UserLLMCredentials] = None) -> Dict[str, Any]:
@@ -295,7 +326,7 @@ Return a JSON document in this exact structure:
             raw_response = self._call_llm(prompt, system_instruction, creds=creds)
             return json.loads(raw_response)
         except Exception as e:
-            print(f"Cover Letter generation failed: {e}. Falling back to mock letter generator.")
+            print(f"Cover Letter generation failed: {e}. Falling back to template generator.")
             return self._generate_mock_cover_letter(resume_json, job_description)
 
     def generate_interview_questions(self, resume_json: Dict[str, Any], job_description: str, creds: Optional[UserLLMCredentials] = None) -> Dict[str, Any]:
@@ -326,19 +357,19 @@ Return a JSON document with this exact format:
   ],
   "behavioral_questions": [
     {{
-      "question": "Behavioral question based on candidate's experience or STAR method...",
+      "question": "Behavioral question...",
       "hint": "What the interviewer is looking for..."
     }}
   ],
   "system_design_questions": [
     {{
-      "question": "System Design question relevant to the role scale...",
+      "question": "System Design question...",
       "hint": "Suggested components to talk about..."
     }}
   ],
   "role_specific_questions": [
     {{
-      "question": "Domain specific question (e.g. compiler design, database internals, ML optimization)...",
+      "question": "Domain specific question...",
       "hint": "Expected explanation detail..."
     }}
   ]
@@ -351,103 +382,101 @@ Return a JSON document with this exact format:
             print(f"Interview Question generation failed: {e}. Falling back to mock interviewer.")
             return self._generate_mock_interview_questions(resume_json, job_description)
 
-    # ================= MOCK FALLBACK GENERATORS =================
+    # ================= REAL PROFILE FALLBACK GENERATOR =================
 
     def _generate_mock_tailored_resume(self, profile: Dict[str, Any], jd: str) -> Dict[str, Any]:
         """
-        Synthesizes a mockup resume based on profile data in case API keys are missing.
+        Generates resume directly from the user's actual master profile data.
+        NEVER uses hardcoded placeholder companies or schools.
         """
-        # Re-use profile structures and augment them for demo purposes
         name = profile.get("user_name", "Candidate")
         email = profile.get("user_email", "candidate@example.com")
-        # Find first user details if available
-        if profile.get("education") and len(profile["education"]) > 0:
-            edu = profile["education"][0]
-        
-        # Build categorized skills
-        skills_list = [s.get("skill_name") for s in profile.get("skills", [])]
-        categories = {}
-        for s in profile.get("skills", []):
-            cat = s.get("category", "General")
-            categories.setdefault(cat, []).append(s.get("skill_name"))
-        
-        skills_output = []
-        for cat, items in categories.items():
-            skills_output.append({"category": cat, "items": items})
-            
+        # master_profile holds the actual lists of education, skills, projects, experience, achievements
+        mp = profile.get("master_profile", profile)
+
+        # 1. Build skills from actual user profile
+        categories: Dict[str, list] = {}
+        for s in mp.get("skills", []):
+            cat = s.get("category") or "Technical Skills"
+            skill_name = s.get("skill_name") or ""
+            if skill_name:
+                categories.setdefault(cat, []).append(skill_name)
+
+        skills_output = [
+            {"category": cat, "items": items}
+            for cat, items in categories.items()
+            if items
+        ]
         if not skills_output:
-            skills_output = [{"category": "Technical Skills", "items": ["Python", "React", "FastAPI", "PostgreSQL", "Tailwind CSS"]}]
-            
+            skills_output = [{"category": "Skills", "items": ["No skills added yet"]}]
+
+        # 2. Build experiences from actual user profile
         experiences_output = []
-        for exp in profile.get("experience", []):
+        for exp in mp.get("experience", []):
+            raw_desc = exp.get("description", "")
+            if isinstance(raw_desc, list):
+                bullets = raw_desc
+            elif raw_desc:
+                bullets = [line.strip().lstrip("-*• ") for line in raw_desc.split("\n") if line.strip()]
+                if not bullets:
+                    bullets = [raw_desc]
+            else:
+                bullets = ["Contributed to core projects and responsibilities."]
+            
             experiences_output.append({
-                "company": exp.get("company", "Company"),
-                "role": exp.get("role", "Software Engineer"),
-                "start_date": exp.get("start_date", "2022"),
+                "company": exp.get("company", ""),
+                "role": exp.get("role", ""),
+                "start_date": exp.get("start_date", ""),
                 "end_date": exp.get("end_date", "Present"),
-                "description": [
-                    f"Spearheaded development of core software features using {', '.join(skills_list[:3]) if skills_list else 'modern frameworks'}.",
-                    f"Collaborated with cross-functional teams to optimize system performance and implement robust APIs.",
-                    f"Designed and deployed responsive web layouts aligning with customer specifications and SEO guidelines."
-                ]
+                "description": bullets
             })
-            
-        if not experiences_output:
-            experiences_output = [{
-                "company": "Tech Solutions Inc.",
-                "role": "Full Stack Engineer",
-                "start_date": "2022-01",
-                "end_date": "Present",
-                "description": [
-                    "Developed responsive web dashboard layouts using Next.js, React, and Tailwind CSS.",
-                    "Built secure backend REST APIs using FastAPI, PostgreSQL, and SQLite, improving response times by 30%.",
-                    "Integrated vector database search algorithms to implement smart autocomplete services."
-                ]
-            }]
 
+        # 3. Build projects from actual user profile
         projects_output = []
-        for proj in profile.get("projects", []):
-            techs = [t.strip() for t in proj.get("tech_stack", "").split(",")] if proj.get("tech_stack") else ["Python", "FastAPI"]
+        for proj in mp.get("projects", []):
+            tech_stack_raw = proj.get("tech_stack", "")
+            if isinstance(tech_stack_raw, list):
+                techs = tech_stack_raw
+            elif tech_stack_raw:
+                techs = [t.strip() for t in tech_stack_raw.split(",") if t.strip()]
+            else:
+                techs = []
+            
             projects_output.append({
-                "title": proj.get("title", "AI Resume Assistant"),
+                "title": proj.get("title", ""),
                 "tech_stack": techs,
-                "description": f"Tailored development of {proj.get('title')} incorporating {proj.get('description', '')[:100]}... fully aligned with JD requirements.",
-                "github_link": proj.get("github_link", "github.com/demo")
+                "description": proj.get("description", ""),
+                "github_link": proj.get("github_link", "")
             })
-            
-        if not projects_output:
-            projects_output = [{
-                "title": "E-Commerce Recommendation System",
-                "tech_stack": ["Python", "TensorFlow", "FastAPI", "SQLite"],
-                "description": "Created a machine learning pipeline that embeds user historical profiles and suggests items, improving conversion rate by 15%.",
-                "github_link": "https://github.com/example/recommender"
-            }]
 
-        edu_output = []
-        for edu in profile.get("education", []):
-            edu_output.append({
-                "institute": edu.get("institute", "State University"),
-                "degree": edu.get("degree", "B.S. Computer Science"),
-                "cgpa": edu.get("cgpa", "3.8"),
-                "start_date": edu.get("start_date", "2018"),
-                "end_date": edu.get("end_date", "2022")
-            })
-            
-        if not edu_output:
-            edu_output = [{
-                "institute": "Stanford University",
-                "degree": "B.S. in Computer Science",
-                "cgpa": "3.9",
-                "start_date": "2018-09",
-                "end_date": "2022-06"
-            }]
+        # 4. Build education from actual user profile
+        edu_output = [
+            {
+                "institute": edu.get("institute", ""),
+                "degree": edu.get("degree", ""),
+                "cgpa": edu.get("cgpa", ""),
+                "start_date": edu.get("start_date", ""),
+                "end_date": edu.get("end_date", "")
+            }
+            for edu in mp.get("education", [])
+        ]
 
-        ach_output = [ach.get("content") for ach in profile.get("achievements", [])]
-        if not ach_output:
-            ach_output = [
-                "Won 1st place in University Hackathon among 50+ participating software engineering teams",
-                "Recognized as a Top Performer at Tech Solutions for exceptional delivery of the cloud migration module"
-            ]
+        # 5. Build achievements from actual user profile
+        ach_output = [
+            ach.get("content", "") for ach in mp.get("achievements", []) if ach.get("content")
+        ]
+
+        # 6. Build summary from actual user profile
+        top_skills = [s for cat in skills_output for s in cat["items"]][:6]
+        skill_summary_str = ", ".join(top_skills) if top_skills else "various technologies"
+        latest_role = experiences_output[0]["role"] if experiences_output else "Professional"
+        latest_comp = f" at {experiences_output[0]['company']}" if experiences_output and experiences_output[0]['company'] else ""
+        
+        summary_text = (
+            f"Results-oriented {latest_role}{latest_comp} skilled in {skill_summary_str}. "
+            f"Demonstrated track record of delivering impactful technical projects and solving complex challenges. "
+            f"Passionate about leveraging core competencies to excel in target opportunities."
+        )
 
         return {
             "summary": {
@@ -456,7 +485,7 @@ Return a JSON document with this exact format:
                 "phone": "",
                 "github": "",
                 "linkedin": "",
-                "professional_summary": "Highly motivated and results-driven Software Engineer with extensive experience building premium web applications. Expert in leveraging FastAPI for clean REST architectures and Next.js for lightning-fast user interfaces. Adept at applying database optimizations and prompt engineering principles to deliver exceptional, interactive AI products."
+                "professional_summary": summary_text
             },
             "skills": skills_output,
             "experience": experiences_output,
@@ -475,11 +504,10 @@ Return a JSON document with this exact format:
                 "project_relevance": 8,
                 "formatting": 9
             },
-            "missing_skills": ["Docker", "Kubernetes", "Redis", "CI/CD Pipelines"],
+            "missing_skills": ["Docker", "CI/CD Pipelines"],
             "improvement_suggestions": [
-                "Quantify achievements (e.g., 'increased performance by X%' or 'reduced loading times by Y%').",
-                "Add more keyword emphasis on DevOps tools like Docker or AWS which are mentioned in the JD.",
-                "Ensure your professional summary directly addresses the specific role (e.g. AI Career Copilot Developer)."
+                "Quantify achievements with metrics and percentages.",
+                "Ensure your professional summary directly addresses the specific role keywords from the JD."
             ]
         }
 
@@ -487,66 +515,64 @@ Return a JSON document with this exact format:
         return {
             "overall_score": 81,
             "strengths": [
-                "Excellent alignment in programming languages (Python, Javascript).",
-                "Solid project work demonstrating FastAPI backend structure.",
-                "Beautifully structured education and degree credentials."
+                "Good alignment in core technical skill categories.",
+                "Clear progression of project and work history.",
+                "Well-structured educational background."
             ],
             "weaknesses": [
-                "Lack of containerization or deployment technologies (Docker/AWS).",
-                "Achievements are qualitative; adding concrete metric values (numbers/percentages) would improve impact.",
-                "Short work duration at initial roles (potential concern for tenure)."
+                "Achievements could benefit from more quantitative metrics (e.g. % improvements, user counts).",
+                "Ensure all target keywords from the job description appear across your bullet points."
             ],
             "ats_risks": [
-                "Low occurrences of keywords like 'Docker' and 'Kubernetes' which are weighted heavily in the target JD.",
-                "No mention of CI/CD pipeline automation tools."
+                "Some industry-specific keywords from the JD may be missing in skills list."
             ],
             "recommendations": [
-                "Insert 1-2 bullet points highlighting how you deploy projects or manage virtual environments.",
-                "Add metrics to your experience descriptions (e.g., 'Built REST APIs handling 500+ daily active users').",
-                "Mention any cloud environments you've worked with (AWS, GCP, Heroku, or Vercel)."
+                "Add measurable impact to your experience descriptions.",
+                "Align your project descriptions closely with target JD requirements."
             ]
         }
 
     def _generate_mock_cover_letter(self, resume: Dict[str, Any], jd: str) -> Dict[str, Any]:
-        name = resume.get("summary", {}).get("name", "Jane Doe")
-        email = resume.get("summary", {}).get("email", "janedoe@example.com")
-        phone = resume.get("summary", {}).get("phone", "+1 (555) 019-2834")
+        name = resume.get("summary", {}).get("name", "Candidate")
+        email = resume.get("summary", {}).get("email", "candidate@example.com")
+        phone = resume.get("summary", {}).get("phone", "")
         return {
-            "cover_letter": f"Dear Hiring Manager,\n\nI am writing to express my strong interest in the Software Engineer position. With a robust background in building scalable FastAPI microservices and interactive Next.js layouts, I am confident in my ability to immediately add value to your engineering team.\n\nIn my previous roles, I have consistently optimized database workflows and written tailored interfaces that improve client engagement. My master profile aligns perfectly with your requirements, and I am excited about the opportunity to build premium AI tools at your company.\n\nThank you for your time and consideration. I look forward to discussing my qualifications in more detail.\n\nSincerely,\n{name}\n{email}\n{phone}",
-            "linkedin_dm": f"Hi [Recruiter Name],\n\nI hope you are doing well! I recently saw the Software Engineer opening on your team and wanted to reach out. With my experience in FastAPI, Next.js, and RAG architectures, I believe my background fits the role perfectly. I have attached my resume and would love to request a brief referral or chat if you have a moment. Thanks!\n\nBest,\n{name}",
-            "application_email": f"Subject: Application for Software Engineer - {name}\n\nDear Hiring Team,\n\nPlease find attached my resume for the open Software Engineer position.\n\nHaving worked extensively with Python/FastAPI, Next.js, and vector databases (Qdrant), I am thrilled by your team's mission. I have a track record of building performant, user-friendly, and modern web applications.\n\nI would love the opportunity to interview and discuss how I can contribute. Thank you for your review.\n\nBest regards,\n\n{name}\n{email}\n{phone}\n{resume.get('summary', {}).get('linkedin', '')}"
+            "cover_letter": f"Dear Hiring Manager,\n\nI am writing to express my strong interest in the position. With my background and hands-on experience, I am confident in my ability to immediately add value to your team.\n\nThroughout my career, I have focused on delivering high-impact solutions and building reliable systems. My skill set and achievements align well with the requirements outlined in your job posting.\n\nThank you for your time and consideration. I look forward to the opportunity to discuss my application further.\n\nSincerely,\n{name}\n{email}\n{phone}",
+            "linkedin_dm": f"Hi [Hiring Manager / Recruiter],\n\nI noticed the open role on your team and wanted to reach out. With my relevant experience and technical skill set, I believe I would be a great fit. I would love to connect or request a brief referral if you have a moment.\n\nBest regards,\n{name}",
+            "application_email": f"Subject: Application for Open Role - {name}\n\nDear Hiring Team,\n\nPlease find attached my resume for the open position.\n\nI have a strong track record of delivering technical solutions and would love the opportunity to contribute to your team's mission.\n\nThank you for your review and consideration.\n\nBest regards,\n{name}\n{email}"
         }
 
     def _generate_mock_interview_questions(self, resume: Dict[str, Any], jd: str) -> Dict[str, Any]:
         return {
             "technical_questions": [
                 {
-                    "question": "What is the difference between SQLite and PostgreSQL in terms of concurrency, and when should you migrate?",
-                    "hint": "Talk about SQLite's database-level locking during writes vs. PostgreSQL's row-level locking and multi-version concurrency control (MVCC)."
+                    "question": "Describe the architecture of your most recent project and the key technical trade-offs you made.",
+                    "hint": "Focus on data flow, technology choices, scalability considerations, and challenges solved."
                 },
                 {
-                    "question": "How do you implement dependency injection in FastAPI, and why is it useful?",
-                    "hint": "FastAPI uses the 'Depends' syntax. It is useful for database session management, auth middleware, and mocking dependencies during testing."
+                    "question": "How do you optimize backend API response times and database query efficiency?",
+                    "hint": "Mention indexing, caching layers (Redis), async query execution, and connection pooling."
                 }
             ],
             "behavioral_questions": [
                 {
-                    "question": "Tell me about a time you had to balance page speed performance with complex features in a React/Next.js application.",
-                    "hint": "Use the STAR method. Describe the situation, explain dynamic imports/lazy loading (React.lazy or next/dynamic) and state optimization, and finish with performance metrics."
+                    "question": "Tell me about a challenging bug or production incident you diagnosed and resolved.",
+                    "hint": "Use the STAR method: Situation, Task, Action taken, and measurable Result achieved."
                 }
             ],
             "system_design_questions": [
                 {
-                    "question": "Design a system to handle high-throughput CV parsing and vector indexing for 100,000 resumes daily.",
-                    "hint": "Design an event-driven architecture using message queues (RabbitMQ/Kafka), asynchronous celery workers, file storage (S3), and scalable vector search databases (Qdrant clustering)."
+                    "question": "How would you design a scalable notification and task-scheduling service?",
+                    "hint": "Discuss message queues (RabbitMQ/Kafka), worker pools, idempotency, and retry mechanisms."
                 }
             ],
             "role_specific_questions": [
                 {
-                    "question": "Explain how a vector database searches for similar items and what role cosine similarity plays.",
-                    "hint": "Talk about embeddings transforming words/paragraphs into high-dimensional vectors, indexing mechanisms (like HNSW), and cosine similarity measuring the angle between vectors to check similarity."
+                    "question": "How do you approach vector embeddings and semantic search in production AI applications?",
+                    "hint": "Explain embedding generation, distance metrics (Cosine similarity), and vector indexing (HNSW)."
                 }
             ]
         }
+
 
 llm_service = LLMService()

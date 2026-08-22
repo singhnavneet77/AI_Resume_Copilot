@@ -66,45 +66,53 @@ def get_profile(current_user: User = Depends(get_current_user), db: Session = De
     }
 
 
-def index_profile_in_qdrant(user_id: int, db: Session):
+def index_profile_in_qdrant(user_id: int):
     """
     Background worker task to extract and upload user details into Qdrant vector database.
+    Opens its own isolated DB session so it doesn't fail when the request session closes.
     """
-    user = db.query(User).filter(User.id == user_id).first()
-    if not user:
-        return
-    
-    # Gather items to index
-    items = []
-    
-    # Format experience items
-    for exp in user.experience:
-        text = f"Work Experience: Role {exp.role} at {exp.company}. Description: {exp.description}."
-        items.append({"id": f"exp_{exp.id}", "text": text, "metadata": {"type": "experience", "id": exp.id}})
+    from backend.database.db import SessionLocal
+    db = SessionLocal()
+    try:
+        user = db.query(User).filter(User.id == user_id).first()
+        if not user:
+            return
         
-    # Format projects
-    for proj in user.projects:
-        text = f"Project: {proj.title}. Tech Stack: {proj.tech_stack}. Description: {proj.description}."
-        items.append({"id": f"proj_{proj.id}", "text": text, "metadata": {"type": "project", "id": proj.id}})
+        # Gather items to index
+        items = []
         
-    # Format skills
-    for skill in user.skills:
-        text = f"Skill: {skill.skill_name} in category {skill.category}."
-        items.append({"id": f"skill_{skill.id}", "text": text, "metadata": {"type": "skill", "id": skill.id}})
-        
-    # Format education
-    for edu in user.education:
-        text = f"Education: Degree {edu.degree} from {edu.institute}. CGPA: {edu.cgpa}."
-        items.append({"id": f"edu_{edu.id}", "text": text, "metadata": {"type": "education", "id": edu.id}})
-        
-    # Format achievements
-    for ach in user.achievements:
-        text = f"Achievement: {ach.content}."
-        items.append({"id": f"ach_{ach.id}", "text": text, "metadata": {"type": "achievement", "id": ach.id}})
-        
-    # Index using rag service
-    if items:
-        rag_service.index_user_profile(user_id=user_id, items=items)
+        # Format experience items
+        for exp in user.experience:
+            text = f"Work Experience: Role {exp.role} at {exp.company}. Description: {exp.description}."
+            items.append({"id": f"exp_{exp.id}", "text": text, "metadata": {"type": "experience", "id": exp.id}})
+            
+        # Format projects
+        for proj in user.projects:
+            text = f"Project: {proj.title}. Tech Stack: {proj.tech_stack}. Description: {proj.description}."
+            items.append({"id": f"proj_{proj.id}", "text": text, "metadata": {"type": "project", "id": proj.id}})
+            
+        # Format skills
+        for skill in user.skills:
+            text = f"Skill: {skill.skill_name} in category {skill.category}."
+            items.append({"id": f"skill_{skill.id}", "text": text, "metadata": {"type": "skill", "id": skill.id}})
+            
+        # Format education
+        for edu in user.education:
+            text = f"Education: Degree {edu.degree} from {edu.institute}. CGPA: {edu.cgpa}."
+            items.append({"id": f"edu_{edu.id}", "text": text, "metadata": {"type": "education", "id": edu.id}})
+            
+        # Format achievements
+        for ach in user.achievements:
+            text = f"Achievement: {ach.content}."
+            items.append({"id": f"ach_{ach.id}", "text": text, "metadata": {"type": "achievement", "id": ach.id}})
+            
+        # Index using rag service
+        if items:
+            rag_service.index_user_profile(user_id=user_id, items=items)
+    except Exception as e:
+        print(f"Background Qdrant indexing error: {e}")
+    finally:
+        db.close()
 
 
 @router.post("", response_model=MasterProfileResponse)
@@ -151,7 +159,7 @@ def update_profile(
         db.refresh(current_user)
         
         # Trigger vector store re-indexing in the background
-        background_tasks.add_task(index_profile_in_qdrant, current_user.id, db)
+        background_tasks.add_task(index_profile_in_qdrant, current_user.id)
         
         return {
             "education": current_user.education,

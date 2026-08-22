@@ -5,7 +5,9 @@ from pydantic import BaseModel
 from typing import List, Optional, Dict, Any
 
 from backend.database.db import get_db
-from backend.database.models import User, ResumeVersion, ATSReport
+from backend.database.models import (
+    User, ResumeVersion, ATSReport, Education, Skill, Project, Experience, Achievement
+)
 from backend.auth.helpers import get_current_user
 from backend.services.rag_service import rag_service
 from backend.services.llm_service import llm_service, UserLLMCredentials
@@ -27,27 +29,33 @@ def generate_tailored_resume(
     user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    # 1. Fetch user's master profile
+    # 1. Fetch user's master profile directly from DB for this user
+    user_education = db.query(Education).filter(Education.user_id == user.id).all()
+    user_skills = db.query(Skill).filter(Skill.user_id == user.id).all()
+    user_projects = db.query(Project).filter(Project.user_id == user.id).all()
+    user_experience = db.query(Experience).filter(Experience.user_id == user.id).all()
+    user_achievements = db.query(Achievement).filter(Achievement.user_id == user.id).all()
+
     profile_dict = {
         "education": [
             {"institute": edu.institute, "degree": edu.degree, "cgpa": edu.cgpa, "start_date": edu.start_date, "end_date": edu.end_date}
-            for edu in user.education
+            for edu in user_education
         ],
         "skills": [
             {"skill_name": sk.skill_name, "category": sk.category}
-            for sk in user.skills
+            for sk in user_skills
         ],
         "projects": [
             {"title": prj.title, "description": prj.description, "tech_stack": prj.tech_stack, "github_link": prj.github_link}
-            for prj in user.projects
+            for prj in user_projects
         ],
         "experience": [
             {"company": exp.company, "role": exp.role, "description": exp.description, "start_date": exp.start_date, "end_date": exp.end_date}
-            for exp in user.experience
+            for exp in user_experience
         ],
         "achievements": [
             {"content": ach.content}
-            for ach in user.achievements
+            for ach in user_achievements
         ]
     }
     

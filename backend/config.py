@@ -1,8 +1,12 @@
 import os
+from pathlib import Path
 from pydantic_settings import BaseSettings
 from dotenv import load_dotenv
 
-load_dotenv()
+# Explicitly load backend/.env using absolute path to support starting from any directory
+ENV_PATH = Path(__file__).resolve().parent / ".env"
+load_dotenv(dotenv_path=ENV_PATH)
+load_dotenv()  # Also load root .env if present
 
 class Settings(BaseSettings):
     PROJECT_NAME: str = "AI Resume Copilot"
