@@ -36,6 +36,9 @@ import {
   AlertTriangle,
   Award,
   Zap,
+  Filter,
+  Tag,
+  Clock,
 } from "lucide-react";
 
 import {
@@ -50,7 +53,6 @@ import {
   SortField,
   SortOrder,
 } from "./types";
-import { INITIAL_APPLICATIONS } from "./sampleData";
 import { parseJobText } from "./jobParser";
 
 function LinkedinIcon(props: any) {
@@ -205,19 +207,17 @@ export default function JobTrackerPage() {
       const stored = localStorage.getItem(STORAGE_KEY);
       if (stored) {
         const parsed = JSON.parse(stored);
-        if (Array.isArray(parsed) && parsed.length > 0) {
+        if (Array.isArray(parsed)) {
           setApplications(parsed);
         } else {
-          setApplications(INITIAL_APPLICATIONS);
-          localStorage.setItem(STORAGE_KEY, JSON.stringify(INITIAL_APPLICATIONS));
+          setApplications([]);
         }
       } else {
-        setApplications(INITIAL_APPLICATIONS);
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(INITIAL_APPLICATIONS));
+        setApplications([]);
       }
     } catch (e) {
-      console.warn("Failed to read from localStorage, using initial sample data:", e);
-      setApplications(INITIAL_APPLICATIONS);
+      console.warn("Failed to read from localStorage:", e);
+      setApplications([]);
     } finally {
       setIsLoaded(true);
     }
@@ -266,7 +266,7 @@ export default function JobTrackerPage() {
     setFormDate(new Date().toISOString().split("T")[0]);
     setFormDeadline("");
     setFormJobUrl("");
-    setFormResumeVersion("FullStack_AI_Resume_v3.pdf");
+    setFormResumeVersion("FullStack_Resume.pdf");
     setFormNotes("");
     setFormJobDesc("");
     setFormMatchScore(88);
@@ -367,7 +367,7 @@ export default function JobTrackerPage() {
         date_applied: formDate || new Date().toISOString().split("T")[0],
         deadline: formDeadline || undefined,
         job_url: formJobUrl.trim() || undefined,
-        resume_version: formResumeVersion.trim() || "FullStack_AI_Resume_v3.pdf",
+        resume_version: formResumeVersion.trim() || "FullStack_Resume.pdf",
         notes: formNotes.trim(),
         job_description: formJobDesc.trim(),
         match_insights: {
@@ -693,11 +693,12 @@ export default function JobTrackerPage() {
     if (fileInputRef.current) fileInputRef.current.value = "";
   };
 
-  // 14. Reset to Demo Data
-  const handleResetData = () => {
-    if (confirm("Reset tracker to default sample applications? This will replace current items.")) {
-      setApplications(INITIAL_APPLICATIONS);
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(INITIAL_APPLICATIONS));
+  // 14. Reset / Clear Data
+  const handleClearData = () => {
+    if (confirm("Are you sure you want to clear all job applications from the tracker?")) {
+      setApplications([]);
+      localStorage.removeItem(STORAGE_KEY);
+      setActiveDrawerAppId(null);
     }
   };
 
@@ -793,16 +794,10 @@ export default function JobTrackerPage() {
       {/* Top Header */}
       <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 border-b border-slate-800/80 pb-6">
         <div>
-          <div className="flex items-center gap-3">
-            <h1 className="text-2xl sm:text-3xl font-bold text-white flex items-center gap-2.5">
-              <Briefcase className="w-7 h-7 text-violet-400" />
-              <span>Job Application Tracker</span>
-            </h1>
-            <span className="text-xs px-2.5 py-1 rounded-full bg-violet-500/10 text-violet-400 border border-violet-500/20 font-semibold tracking-wide flex items-center gap-1.5">
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
-              Local Sync Active
-            </span>
-          </div>
+          <h1 className="text-2xl sm:text-3xl font-bold text-white flex items-center gap-2.5">
+            <Briefcase className="w-7 h-7 text-violet-400" />
+            <span>Job Application Tracker</span>
+          </h1>
           <p className="text-slate-400 mt-1 text-sm">
             Track applications, manage multi-round interviews, follow up on time, and analyze relevance scores.
           </p>
@@ -869,11 +864,11 @@ export default function JobTrackerPage() {
               />
             </label>
             <button
-              onClick={handleResetData}
-              title="Reset to sample data"
-              className="p-2 text-slate-400 hover:text-amber-400 bg-slate-900/80 hover:bg-slate-800 border border-slate-800 rounded-xl text-xs transition-all"
+              onClick={handleClearData}
+              title="Clear all job applications"
+              className="p-2 text-slate-400 hover:text-rose-400 bg-slate-900/80 hover:bg-slate-800 border border-slate-800 rounded-xl text-xs transition-all"
             >
-              <RotateCcw className="w-3.5 h-3.5" />
+              <Trash2 className="w-3.5 h-3.5" />
             </button>
           </div>
 
@@ -953,7 +948,7 @@ export default function JobTrackerPage() {
         </div>
       </div>
 
-      {/* Filter & Toolbar */}
+      {/* Filter & Toolbar: Matching Pill/Button Style with Columns UI */}
       <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3 bg-slate-950/60 p-3 rounded-2xl border border-slate-800/80">
         {/* Search Input */}
         <div className="relative flex-1 max-w-md">
@@ -975,116 +970,118 @@ export default function JobTrackerPage() {
           )}
         </div>
 
-        {/* Dropdown Filters */}
+        {/* Dropdown Filters matching the Column UI */}
         <div className="flex flex-wrap items-center gap-2">
-          {/* Status Filter */}
-          <div className="flex items-center gap-1 bg-slate-900/80 border border-slate-800 rounded-xl px-2.5 py-1.5">
-            <span className="text-[11px] text-slate-500 font-medium">Stage:</span>
+          {/* Stage Filter Button */}
+          <div className="relative flex items-center gap-1.5 px-3 py-1.5 bg-slate-900/80 hover:bg-slate-800 border border-slate-800 rounded-xl text-xs text-slate-300 transition-all">
+            <Filter className="w-3.5 h-3.5 text-slate-400 shrink-0" />
             <select
               value={statusFilter}
               onChange={(e) => setStatusFilter(e.target.value)}
-              className="bg-transparent text-xs text-slate-300 font-medium focus:outline-none cursor-pointer"
+              className="bg-transparent text-xs text-slate-300 font-medium focus:outline-none cursor-pointer pr-4 appearance-none"
             >
-              <option value="ALL">All Stages</option>
+              <option value="ALL" className="bg-slate-900 text-slate-300">Stage: All</option>
               {STAGE_ORDER.map((st) => (
-                <option key={st} value={st}>
-                  {st}
+                <option key={st} value={st} className="bg-slate-900 text-slate-300">
+                  Stage: {st}
                 </option>
               ))}
             </select>
+            <ChevronDown className="w-3 h-3 text-slate-500 absolute right-2.5 pointer-events-none" />
           </div>
 
-          {/* Priority Filter */}
-          <div className="flex items-center gap-1 bg-slate-900/80 border border-slate-800 rounded-xl px-2.5 py-1.5">
-            <span className="text-[11px] text-slate-500 font-medium">Priority:</span>
+          {/* Priority Filter Button */}
+          <div className="relative flex items-center gap-1.5 px-3 py-1.5 bg-slate-900/80 hover:bg-slate-800 border border-slate-800 rounded-xl text-xs text-slate-300 transition-all">
+            <Tag className="w-3.5 h-3.5 text-slate-400 shrink-0" />
             <select
               value={priorityFilter}
               onChange={(e) => setPriorityFilter(e.target.value)}
-              className="bg-transparent text-xs text-slate-300 font-medium focus:outline-none cursor-pointer"
+              className="bg-transparent text-xs text-slate-300 font-medium focus:outline-none cursor-pointer pr-4 appearance-none"
             >
-              <option value="ALL">All Priorities</option>
-              <option value="High">High</option>
-              <option value="Medium">Medium</option>
-              <option value="Low">Low</option>
+              <option value="ALL" className="bg-slate-900 text-slate-300">Priority: All</option>
+              <option value="High" className="bg-slate-900 text-slate-300">Priority: High</option>
+              <option value="Medium" className="bg-slate-900 text-slate-300">Priority: Medium</option>
+              <option value="Low" className="bg-slate-900 text-slate-300">Priority: Low</option>
             </select>
+            <ChevronDown className="w-3 h-3 text-slate-500 absolute right-2.5 pointer-events-none" />
           </div>
 
-          {/* Tasks Filter */}
-          <div className="flex items-center gap-1 bg-slate-900/80 border border-slate-800 rounded-xl px-2.5 py-1.5">
-            <span className="text-[11px] text-slate-500 font-medium">Tasks:</span>
+          {/* Task Filter Button */}
+          <div className="relative flex items-center gap-1.5 px-3 py-1.5 bg-slate-900/80 hover:bg-slate-800 border border-slate-800 rounded-xl text-xs text-slate-300 transition-all">
+            <CheckSquare className="w-3.5 h-3.5 text-slate-400 shrink-0" />
             <select
               value={taskFilter}
               onChange={(e) => setTaskFilter(e.target.value)}
-              className="bg-transparent text-xs text-slate-300 font-medium focus:outline-none cursor-pointer"
+              className="bg-transparent text-xs text-slate-300 font-medium focus:outline-none cursor-pointer pr-4 appearance-none"
             >
-              <option value="ALL">All Tasks</option>
-              <option value="PENDING">Has Pending Tasks</option>
-              <option value="OVERDUE">Has Overdue Tasks</option>
+              <option value="ALL" className="bg-slate-900 text-slate-300">Task: All</option>
+              <option value="PENDING" className="bg-slate-900 text-slate-300">Task: Pending</option>
+              <option value="OVERDUE" className="bg-slate-900 text-slate-300">Task: Overdue</option>
             </select>
+            <ChevronDown className="w-3 h-3 text-slate-500 absolute right-2.5 pointer-events-none" />
           </div>
 
-          {/* Sorter */}
-          <div className="flex items-center gap-1 bg-slate-900/80 border border-slate-800 rounded-xl px-2.5 py-1.5">
-            <ArrowUpDown className="w-3 h-3 text-slate-500" />
+          {/* Date Applied / Sorter Button */}
+          <div className="relative flex items-center gap-1.5 px-3 py-1.5 bg-slate-900/80 hover:bg-slate-800 border border-slate-800 rounded-xl text-xs text-slate-300 transition-all">
+            <ArrowUpDown className="w-3.5 h-3.5 text-slate-400 shrink-0" />
             <select
               value={sortField}
               onChange={(e) => setSortField(e.target.value as SortField)}
-              className="bg-transparent text-xs text-slate-300 font-medium focus:outline-none cursor-pointer"
+              className="bg-transparent text-xs text-slate-300 font-medium focus:outline-none cursor-pointer pr-4 appearance-none"
             >
-              <option value="date_applied">Date Applied</option>
-              <option value="match_score">Match Score</option>
-              <option value="company">Company</option>
-              <option value="priority">Priority</option>
+              <option value="date_applied" className="bg-slate-900 text-slate-300">Sort: Date Applied</option>
+              <option value="match_score" className="bg-slate-900 text-slate-300">Sort: Match Score</option>
+              <option value="company" className="bg-slate-900 text-slate-300">Sort: Company</option>
+              <option value="priority" className="bg-slate-900 text-slate-300">Sort: Priority</option>
             </select>
             <button
               onClick={() => setSortOrder((prev) => (prev === "asc" ? "desc" : "asc"))}
-              className="text-[10px] text-violet-400 font-bold hover:text-violet-300 ml-1 px-1 rounded bg-violet-500/10"
-              title="Toggle sort order"
+              className="text-[10px] text-violet-400 font-bold hover:text-violet-300 ml-1 px-1 rounded bg-violet-500/10 cursor-pointer"
+              title="Toggle ASC / DESC"
             >
               {sortOrder === "asc" ? "ASC" : "DESC"}
             </button>
+            <ChevronDown className="w-3 h-3 text-slate-500 absolute right-8 pointer-events-none" />
           </div>
 
-          {/* Table Column Toggle (Only visible in table view) */}
-          {viewMode === "table" && (
-            <div className="relative">
-              <button
-                onClick={() => setIsColMenuOpen(!isColMenuOpen)}
-                className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-900/80 hover:bg-slate-800 border border-slate-800 rounded-xl text-xs text-slate-300 transition-all"
-              >
-                <SlidersHorizontal className="w-3.5 h-3.5 text-slate-400" />
-                <span>Columns</span>
-                <ChevronDown className="w-3 h-3 text-slate-500" />
-              </button>
+          {/* Columns Toggle Button */}
+          <div className="relative">
+            <button
+              onClick={() => setIsColMenuOpen(!isColMenuOpen)}
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-900/80 hover:bg-slate-800 border border-slate-800 rounded-xl text-xs text-slate-300 transition-all cursor-pointer"
+            >
+              <SlidersHorizontal className="w-3.5 h-3.5 text-slate-400" />
+              <span>Columns</span>
+              <ChevronDown className="w-3 h-3 text-slate-500" />
+            </button>
 
-              {isColMenuOpen && (
-                <div className="absolute right-0 top-full mt-2 w-52 bg-slate-900 border border-slate-800 rounded-xl p-2 shadow-2xl z-30 space-y-1 animate-in fade-in zoom-in-95">
-                  <div className="text-[11px] font-semibold text-slate-400 px-2 py-1 uppercase tracking-wider border-b border-slate-800">
-                    Visible Columns
-                  </div>
-                  {Object.entries(columnsVisible).map(([key, isVis]) => (
-                    <label
-                      key={key}
-                      className="flex items-center justify-between px-2 py-1.5 rounded-lg hover:bg-slate-800 text-xs text-slate-300 cursor-pointer"
-                    >
-                      <span className="capitalize">{key.replace(/([A-Z])/g, " $1")}</span>
-                      <input
-                        type="checkbox"
-                        checked={isVis}
-                        onChange={(e) =>
-                          setColumnsVisible((prev) => ({
-                            ...prev,
-                            [key]: e.target.checked,
-                          }))
-                        }
-                        className="rounded border-slate-700 text-violet-600 focus:ring-0"
-                      />
-                    </label>
-                  ))}
+            {isColMenuOpen && (
+              <div className="absolute right-0 top-full mt-2 w-52 bg-slate-900 border border-slate-800 rounded-xl p-2 shadow-2xl z-30 space-y-1 animate-in fade-in zoom-in-95">
+                <div className="text-[11px] font-semibold text-slate-400 px-2 py-1 uppercase tracking-wider border-b border-slate-800">
+                  Visible Columns
                 </div>
-              )}
-            </div>
-          )}
+                {Object.entries(columnsVisible).map(([key, isVis]) => (
+                  <label
+                    key={key}
+                    className="flex items-center justify-between px-2 py-1.5 rounded-lg hover:bg-slate-800 text-xs text-slate-300 cursor-pointer"
+                  >
+                    <span className="capitalize">{key.replace(/([A-Z])/g, " $1")}</span>
+                    <input
+                      type="checkbox"
+                      checked={isVis}
+                      onChange={(e) =>
+                        setColumnsVisible((prev) => ({
+                          ...prev,
+                          [key]: e.target.checked,
+                        }))
+                      }
+                      className="rounded border-slate-700 text-violet-600 focus:ring-0"
+                    />
+                  </label>
+                ))}
+              </div>
+            )}
+          </div>
         </div>
       </div>
 
@@ -1351,7 +1348,7 @@ export default function JobTrackerPage() {
                 {filteredApplications.length === 0 ? (
                   <tr>
                     <td colSpan={10} className="text-center py-12 text-slate-500">
-                      No applications found matching your criteria.
+                      No applications found. Click &quot;+ Add Job&quot; above to track your first application!
                     </td>
                   </tr>
                 ) : (

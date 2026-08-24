@@ -191,9 +191,8 @@ export default function SettingsPage() {
           </button>
         </form>
 
-        {/* Database & Environment Info panel */}
+        {/* User info panel */}
         <div className="space-y-6">
-          {/* User info */}
           <div className="glass-panel p-6 rounded-2xl space-y-4">
             <h3 className="text-sm font-bold text-slate-200 uppercase tracking-wider flex items-center space-x-2 border-b border-slate-800/80 pb-3">
               <User className="w-4 h-4 text-violet-400" />
@@ -202,39 +201,11 @@ export default function SettingsPage() {
             <div className="space-y-3">
               <div>
                 <span className="block text-[10px] text-slate-500 uppercase tracking-wider font-semibold">Name</span>
-                <span className="text-sm text-slate-200 font-medium">{user?.name}</span>
+                <span className="text-sm text-slate-200 font-medium">{user?.name || "User"}</span>
               </div>
               <div>
                 <span className="block text-[10px] text-slate-500 uppercase tracking-wider font-semibold">Email</span>
-                <span className="text-sm text-slate-200 font-medium">{user?.email}</span>
-              </div>
-              <div>
-                <span className="block text-[10px] text-slate-500 uppercase tracking-wider font-semibold">Role ID</span>
-                <span className="text-xs px-2 py-0.5 bg-violet-500/10 text-violet-400 rounded-md font-medium border border-violet-500/20">
-                  User-{user?.id}
-                </span>
-              </div>
-            </div>
-          </div>
-
-          {/* Database metrics */}
-          <div className="glass-panel p-6 rounded-2xl space-y-4">
-            <h3 className="text-sm font-bold text-slate-200 uppercase tracking-wider flex items-center space-x-2 border-b border-slate-800/80 pb-3">
-              <Database className="w-4 h-4 text-emerald-400" />
-              <span>Database Status</span>
-            </h3>
-            <div className="space-y-3">
-              <div>
-                <span className="block text-[10px] text-slate-500 uppercase tracking-wider font-semibold">Primary SQL DB</span>
-                <span className="text-xs text-slate-400 font-mono break-all leading-normal">{dbUrl}</span>
-              </div>
-              <div>
-                <span className="block text-[10px] text-slate-500 uppercase tracking-wider font-semibold">Qdrant Storage</span>
-                <span className="text-xs text-slate-400 font-mono break-all leading-normal">{qdrantPath}</span>
-              </div>
-              <div className="flex items-center space-x-2 pt-1">
-                <span className="w-2.5 h-2.5 bg-emerald-500 rounded-full animate-ping"></span>
-                <span className="text-xs text-slate-400 font-medium">SQLite Engine Online</span>
+                <span className="text-sm text-slate-200 font-medium">{user?.email || "—"}</span>
               </div>
             </div>
           </div>
@@ -243,3 +214,4 @@ export default function SettingsPage() {
     </div>
   );
 }
+
