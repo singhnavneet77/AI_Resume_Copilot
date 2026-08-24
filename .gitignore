@@ -46,8 +46,9 @@ htmlcov/
 *.sqlite
 *.sqlite3
 
-# ── Qdrant local vector storage ─────────────────────────────
+# ── Qdrant local vector storage & local user files ─────────
 qdrant_local_storage/
+backend/data/
 
 # ── Node / Next.js ──────────────────────────────────────────
 node_modules/
@@ -107,3 +108,9 @@ logs/
 *.temp
 *.orig
 .history/
+
+# ── Project Specific ────────────────────────────────────────
+AI_Resume_Copilot_Full_SRS.pdf
+POSTGRES_SETUP.md
+postgress_setup.md
+

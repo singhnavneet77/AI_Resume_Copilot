@@ -16,6 +16,7 @@ import {
   X,
   ShieldCheck,
   Zap,
+  ListTodo,
 } from "lucide-react";
 
 export default function DashboardLayout({
@@ -29,6 +30,7 @@ export default function DashboardLayout({
 
   const menuItems = [
     { name: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
+    { name: "Job Tracker", href: "/tracker", icon: ListTodo },
     { name: "Master Profile", href: "/profile", icon: UserCircle },
     { name: "Tailored Resumes", href: "/resumes", icon: FileText },
     { name: "Job Analyzer & Tailor", href: "/jd-analysis", icon: Sparkles },
