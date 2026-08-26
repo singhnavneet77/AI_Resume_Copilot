@@ -2,7 +2,7 @@
 
 # 🚀 AI Resume Copilot
 
-**An intelligent, full-stack career tool that tailors your resume to any job description using AI — with ATS scoring, cover letter generation, and interview prep.**
+**An intelligent, full-stack career tool that tailors your resume to any job description using AI — with ATS scoring, cover letter generation, job tracker, and interview prep.**
 
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.111-009688?style=flat-square&logo=fastapi)](https://fastapi.tiangolo.com/)
 [![Next.js](https://img.shields.io/badge/Next.js-14-black?style=flat-square&logo=next.js)](https://nextjs.org/)
