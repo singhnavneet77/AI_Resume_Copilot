@@ -55,7 +55,7 @@ def migrate(sqlite_url: str, postgres_url: str):
             preferred_provider=getattr(u, "preferred_provider", "gemini") or "gemini",
         )
         dst.add(new_user)
-        dst.flush()  # get new_user.id
+        dst.flush() 
 
         for edu in u.education:
             dst.add(Education(user_id=new_user.id, institute=edu.institute, degree=edu.degree,

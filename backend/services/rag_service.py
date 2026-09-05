@@ -16,7 +16,6 @@ class RAGService:
         Initialize Qdrant client using local folder path or in-memory fallback.
         """
         try:
-            # We create a local storage path for Qdrant
             os.makedirs(settings.QDRANT_PATH, exist_ok=True)
             self.client = QdrantClient(path=settings.QDRANT_PATH)
             print(f"Qdrant initialized successfully at: {settings.QDRANT_PATH}")
@@ -26,9 +25,9 @@ class RAGService:
 
     def _get_embedding_dimension(self) -> int:
         if settings.PREFERRED_PROVIDER == "openai" and settings.OPENAI_API_KEY:
-            return 1536  # text-embedding-3-small
+            return 1536 
         else:
-            return 768   # models/text-embedding-004
+            return 768  
 
     def _ensure_collection(self, collection_name: str):
         """
@@ -49,12 +48,12 @@ class RAGService:
         """
         Generate embedding vector using the configured provider.
         """
-        # Clean text
+       
         text = text.strip().replace("\n", " ")
         if not text:
             return [0.0] * self._get_embedding_dimension()
 
-        # Try Gemini
+       
         if settings.PREFERRED_PROVIDER == "gemini" and settings.GEMINI_API_KEY:
             try:
                 import google.generativeai as genai
@@ -81,13 +80,11 @@ class RAGService:
             except Exception as e:
                 print(f"OpenAI embedding generation failed: {e}")
 
-        # Fallback Mock Embedding (so app does not crash without API keys)
+
         print("Warning: API Key not set or failed. Using random fallback embedding.")
         dimension = self._get_embedding_dimension()
-        # Seed based on text hash to keep it deterministic for identical text
         random.seed(hash(text))
         vector = [random.uniform(-0.1, 0.1) for _ in range(dimension)]
-        # Normalize vector
         norm = sum(x**2 for x in vector)**0.5
         return [x/norm for x in vector] if norm > 0 else vector
 
@@ -99,7 +96,6 @@ class RAGService:
         collection_name = "user_profiles"
         self._ensure_collection(collection_name)
         
-        # First, delete existing points for this user to avoid stale profile records
         self.client.delete(
             collection_name=collection_name,
             points_selector=Filter(
@@ -122,8 +118,7 @@ class RAGService:
                 **(item.get("metadata") or {})
             }
             
-            # Use deterministic integer id for point
-            # Python hash can be negative or larger than 64-bit int, so we create a simple combined key
+
             point_id = int(hash(f"{user_id}_{item['id']}") & 0xfffffff)
             
             points.append(
@@ -151,7 +146,6 @@ class RAGService:
         
         query_vector = self.get_embedding(query_text)
         
-        # Build payload filter
         must_conditions = [
             FieldCondition(
                 key="user_id",

@@ -107,8 +107,11 @@ export default function ProfilePage() {
     setSaving(true);
     setSuccess(false);
     
-    // Prepare payload. Notice that FastAPI updates profile by cleaning and re-inserting lists.
+    // Prepare payload including personal contact details and master lists
     const payload = {
+      phone: personal.phone,
+      github: personal.github,
+      linkedin: personal.linkedin,
       education,
       skills,
       projects,

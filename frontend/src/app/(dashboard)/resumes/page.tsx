@@ -5,7 +5,7 @@ import { useSearchParams, useRouter } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
 import {
   FileText,
-  Printer,
+  Download,
   ChevronRight,
   Sparkles,
   Award,
@@ -20,6 +20,56 @@ import {
   MessageSquare,
   Trash2,
 } from "lucide-react";
+
+function parseBullets(content: any): string[] {
+  if (!content) return [];
+  let rawLines: string[] = [];
+  if (Array.isArray(content)) {
+    content.forEach((item) => {
+      if (typeof item === "string") {
+        item.split("\n").forEach((sub) => {
+          if (sub.trim()) rawLines.push(sub.trim());
+        });
+      } else if (item) {
+        rawLines.push(String(item).trim());
+      }
+    });
+  } else if (typeof content === "string") {
+    content.split("\n").forEach((sub) => {
+      if (sub.trim()) rawLines.push(sub.trim());
+    });
+  } else {
+    rawLines = [String(content).trim()];
+  }
+
+  const bulletMarkers = ["•", "-", "*", "\ufffd", "–"];
+  const bullets: string[] = [];
+
+  for (const line of rawLines) {
+    const lineClean = line.trim();
+    if (!lineClean) continue;
+
+    const startsWithBullet =
+      bulletMarkers.some((m) => lineClean.startsWith(m)) ||
+      /^\d+[\.\)]\s+/.test(lineClean);
+    const cleanedText = lineClean.replace(/^[•\-*\ufffd–\s\d\.\)]+\s*/, "").trim();
+
+    if (!cleanedText) continue;
+
+    if (startsWithBullet || bullets.length === 0) {
+      bullets.push(cleanedText);
+    } else {
+      const prev = bullets[bullets.length - 1];
+      if ((!prev.endsWith(".") && !prev.endsWith("!") && !prev.endsWith("?")) || /^[a-z]/.test(lineClean)) {
+        bullets[bullets.length - 1] = `${prev} ${cleanedText}`;
+      } else {
+        bullets.push(cleanedText);
+      }
+    }
+  }
+
+  return bullets;
+}
 
 interface ResumeVersion {
   id: number;
@@ -81,6 +131,9 @@ export default function ResumesPage() {
   // Interview Agent State
   const [loadingInterview, setLoadingInterview] = useState(false);
   const [interviewData, setInterviewData] = useState<any | null>(null);
+
+  // PDF Direct Download State
+  const [downloadingPdf, setDownloadingPdf] = useState(false);
 
   // Copy helpers
   const [copied, setCopied] = useState<string | null>(null);
@@ -190,9 +243,35 @@ export default function ResumesPage() {
     }
   }, [agentTab]);
 
-  // Trigger Browser Print Dialog
-  const handlePrint = () => {
-    window.print();
+  // Single Direct-Download PDF Action (No browser print dialog, no menus)
+  const handleDownloadPdf = async () => {
+    if (!selectedResume) return;
+    setDownloadingPdf(true);
+    try {
+      const token = localStorage.getItem("token");
+      const res = await fetch(`http://127.0.0.1:8000/api/resume/${selectedResume.id}/pdf`, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
+      if (!res.ok) {
+        throw new Error("Failed to download PDF from server");
+      }
+      const blob = await res.blob();
+      const downloadUrl = window.URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = downloadUrl;
+      const rawName = selectedResume.resume_json?.summary?.name || "Resume";
+      const safeName = rawName.trim().replace(/[^a-zA-Z0-9_-]/g, "_");
+      link.download = `${safeName || "Resume"}.pdf`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(downloadUrl);
+    } catch (err) {
+      console.error("PDF download failed", err);
+      alert("Failed to download resume PDF. Please check backend connection.");
+    } finally {
+      setDownloadingPdf(false);
+    }
   };
 
   // CSS template variations for live rendering in the previewer
@@ -316,13 +395,19 @@ export default function ResumesPage() {
               </p>
             </div>
 
-            {/* Print Trigger */}
+            {/* Direct Download PDF Button */}
             <button
-              onClick={handlePrint}
-              className="flex items-center space-x-2 bg-gradient-to-r from-violet-600 to-indigo-500 hover:from-violet-500 hover:to-indigo-400 text-white px-4.5 py-2.5 rounded-xl font-bold text-xs transition-all shadow-md shadow-violet-500/20"
+              onClick={handleDownloadPdf}
+              disabled={downloadingPdf}
+              title="Direct Download PDF"
+              className="flex items-center space-x-2 bg-gradient-to-r from-violet-600 to-indigo-500 hover:from-violet-500 hover:to-indigo-400 text-white px-4.5 py-2.5 rounded-xl font-bold text-xs transition-all shadow-md shadow-violet-500/20 disabled:opacity-60 cursor-pointer"
             >
-              <Printer className="w-4 h-4" />
-              <span>Export PDF / Print</span>
+              {downloadingPdf ? (
+                <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+              ) : (
+                <Download className="w-4 h-4" />
+              )}
+              <span>{downloadingPdf ? "Downloading..." : "Download PDF"}</span>
             </button>
           </div>
         )}
@@ -373,7 +458,7 @@ export default function ResumesPage() {
           <div>
             {/* PREVIEW TAB */}
             {agentTab === "preview" && (
-              <div className="bg-white p-8 sm:p-12 shadow-2xl rounded-2xl overflow-hidden resume-print-layout text-slate-900 border border-slate-300">
+              <div className="bg-white p-8 sm:p-12 shadow-2xl rounded-2xl w-full max-w-full overflow-visible resume-print-layout text-slate-900 border border-slate-300">
                 {(() => {
                   const style = getTemplateStyle(selectedResume.template_name);
                   const resume = selectedResume.resume_json;
@@ -381,23 +466,52 @@ export default function ResumesPage() {
                     <div className={`${style.font} text-[10.5pt] leading-normal`}>
                       {/* HEADER SUMMARY */}
                       <header className={style.header}>
-                        <h1 className="text-2xl font-extrabold tracking-tight uppercase">
+                        <h1 className="text-2xl font-extrabold tracking-tight uppercase text-slate-900">
                           {resume.summary.name}
                         </h1>
-                        <div className="flex flex-wrap justify-center gap-x-3 gap-y-1 text-xs text-slate-700 mt-2 font-medium">
-                          {resume.summary.email && <span>{resume.summary.email}</span>}
-                          {resume.summary.phone && <span>• {resume.summary.phone}</span>}
-                          {resume.summary.github && (
-                            <span className="flex items-center">
-                              • <span className="underline ml-1">{resume.summary.github.replace("https://", "")}</span>
-                            </span>
-                          )}
-                          {resume.summary.linkedin && (
-                            <span className="flex items-center">
-                              • <span className="underline ml-1">{resume.summary.linkedin.replace("https://", "")}</span>
-                            </span>
-                          )}
-                        </div>
+                        {(() => {
+                          const contactParts: React.ReactNode[] = [];
+                          if (resume.summary.email) {
+                            contactParts.push(
+                              <a key="email" href={`mailto:${resume.summary.email}`} className="hover:text-indigo-600 hover:underline">
+                                {resume.summary.email}
+                              </a>
+                            );
+                          }
+                          if (resume.summary.phone) {
+                            contactParts.push(<span key="phone">{resume.summary.phone}</span>);
+                          }
+                          if (resume.summary.github) {
+                            const cleanGh = resume.summary.github.replace(/^https?:\/\/(www\.)?/, "").replace(/\/$/, "");
+                            const ghUrl = resume.summary.github.startsWith("http") ? resume.summary.github : `https://${resume.summary.github}`;
+                            contactParts.push(
+                              <a key="github" href={ghUrl} target="_blank" rel="noreferrer" className="hover:text-indigo-600 hover:underline">
+                                {cleanGh}
+                              </a>
+                            );
+                          }
+                          if (resume.summary.linkedin) {
+                            const cleanLi = resume.summary.linkedin.replace(/^https?:\/\/(www\.)?/, "").replace(/\/$/, "");
+                            const liUrl = resume.summary.linkedin.startsWith("http") ? resume.summary.linkedin : `https://${resume.summary.linkedin}`;
+                            contactParts.push(
+                              <a key="linkedin" href={liUrl} target="_blank" rel="noreferrer" className="hover:text-indigo-600 hover:underline">
+                                {cleanLi}
+                              </a>
+                            );
+                          }
+                          if (contactParts.length === 0) return null;
+                          const isCentered = !style.header.includes("text-left");
+                          return (
+                            <div className={`flex flex-wrap items-center gap-x-2.5 gap-y-1 text-xs text-slate-600 mt-2 font-medium ${isCentered ? "justify-center" : "justify-start"}`}>
+                              {contactParts.map((part, pidx) => (
+                                <React.Fragment key={pidx}>
+                                  {pidx > 0 && <span className="text-slate-400 select-none">|</span>}
+                                  {part}
+                                </React.Fragment>
+                              ))}
+                            </div>
+                          );
+                        })()}
                         {resume.summary.professional_summary && (
                           <p className="text-xs text-slate-600 mt-3 text-justify leading-relaxed italic">
                             {resume.summary.professional_summary}
@@ -425,25 +539,28 @@ export default function ResumesPage() {
                         <section>
                           <h2 className={style.sectionHeader}>Work Experience</h2>
                           <div className="space-y-4">
-                            {resume.experience.map((exp, idx) => (
-                              <div key={idx} className="experience-item page-break-avoid text-xs">
-                                <div className="flex justify-between items-start font-semibold text-slate-800">
-                                  <span>
-                                    {exp.role} at <strong className="font-bold">{exp.company}</strong>
-                                  </span>
-                                  <span className="text-slate-500 italic font-medium shrink-0 ml-2">
-                                    {exp.start_date} – {exp.end_date}
-                                  </span>
+                            {resume.experience.map((exp, idx) => {
+                              const bullets = parseBullets(exp.description);
+                              return (
+                                <div key={idx} className="experience-item page-break-avoid text-xs w-full max-w-full">
+                                  <div className="flex flex-wrap justify-between items-baseline gap-x-3 gap-y-1 font-semibold text-slate-800">
+                                    <span>
+                                      {exp.role} at <strong className="font-bold">{exp.company}</strong>
+                                    </span>
+                                    <span className="text-slate-500 italic font-medium shrink-0 ml-2">
+                                      {exp.start_date} – {exp.end_date}
+                                    </span>
+                                  </div>
+                                  <ul className="list-disc list-outside ml-4 mt-1.5 space-y-1 text-slate-700">
+                                    {bullets.map((bullet, bidx) => (
+                                      <li key={bidx} className="leading-relaxed break-words whitespace-normal text-left">
+                                        {bullet}
+                                      </li>
+                                    ))}
+                                  </ul>
                                 </div>
-                                <ul className="list-disc list-outside ml-4 mt-1.5 space-y-1 text-slate-700 text-justify">
-                                  {exp.description.map((bullet, bidx) => (
-                                    <li key={bidx} className="leading-relaxed">
-                                      {bullet}
-                                    </li>
-                                  ))}
-                                </ul>
-                              </div>
-                            ))}
+                              );
+                            })}
                           </div>
                         </section>
                       )}
@@ -453,26 +570,49 @@ export default function ResumesPage() {
                         <section>
                           <h2 className={style.sectionHeader}>Key Projects</h2>
                           <div className="space-y-3.5">
-                            {resume.projects.map((proj, idx) => (
-                              <div key={idx} className="project-item page-break-avoid text-xs">
-                                <div className="flex justify-between items-start font-semibold text-slate-800">
-                                  <span className="font-bold flex items-center">
-                                    {proj.title}
-                                    {proj.github_link && (
-                                      <span className="text-[9px] text-slate-500 ml-1.5 underline italic">
-                                        ({proj.github_link.replace("https://", "")})
+                            {resume.projects.map((proj, idx) => {
+                              const bullets = parseBullets(proj.description);
+                              const techStr = Array.isArray(proj.tech_stack)
+                                ? proj.tech_stack.join(", ")
+                                : proj.tech_stack || "";
+                              return (
+                                <div key={idx} className="project-item page-break-avoid text-xs w-full max-w-full">
+                                  <div className="flex flex-wrap justify-between items-baseline gap-x-3 gap-y-1 font-semibold text-slate-800">
+                                    <span className="font-bold flex items-center flex-wrap">
+                                      {proj.title}
+                                      {proj.github_link && (
+                                        <a
+                                          href={proj.github_link.startsWith("http") ? proj.github_link : `https://${proj.github_link}`}
+                                          target="_blank"
+                                          rel="noreferrer"
+                                          className="text-[9px] text-indigo-600 hover:text-indigo-800 ml-1.5 underline italic font-normal"
+                                        >
+                                          ({proj.github_link.replace(/^https?:\/\/(www\.)?/, "").replace(/\/$/, "")})
+                                        </a>
+                                      )}
+                                    </span>
+                                    {techStr && (
+                                      <span className="text-slate-500 italic font-medium text-right text-[11px] max-w-full">
+                                        {techStr}
                                       </span>
                                     )}
-                                  </span>
-                                  <span className="text-slate-500 italic font-medium shrink-0 ml-2">
-                                    {proj.tech_stack.join(", ")}
-                                  </span>
+                                  </div>
+                                  {bullets.length > 1 ? (
+                                    <ul className="list-disc list-outside ml-4 mt-1.5 space-y-1 text-slate-700">
+                                      {bullets.map((bullet, bidx) => (
+                                        <li key={bidx} className="leading-relaxed break-words whitespace-normal text-left">
+                                          {bullet}
+                                        </li>
+                                      ))}
+                                    </ul>
+                                  ) : bullets.length === 1 ? (
+                                    <p className="text-slate-700 mt-1 leading-relaxed break-words whitespace-normal text-left">
+                                      {bullets[0]}
+                                    </p>
+                                  ) : null}
                                 </div>
-                                <p className="text-slate-700 mt-1 leading-relaxed text-justify">
-                                  {proj.description}
-                                </p>
-                              </div>
-                            ))}
+                              );
+                            })}
                           </div>
                         </section>
                       )}

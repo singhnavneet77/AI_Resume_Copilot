@@ -11,7 +11,6 @@ from backend.auth.helpers import get_current_user
 
 router = APIRouter(prefix="/tracker", tags=["tracker"])
 
-# Directory to persist user job applications without touching SQL DB
 TRACKER_DATA_DIR = Path(__file__).resolve().parent.parent / "data" / "tracker"
 TRACKER_DATA_DIR.mkdir(parents=True, exist_ok=True)
 
@@ -20,7 +19,7 @@ class JobApplicationSchema(BaseModel):
     id: Optional[str] = None
     company: str
     role: str
-    status: str = "Applied"  # Applied, Assessment, Interview, Offer, Rejected
+    status: str = "Applied" 
     location: Optional[str] = "Remote"
     salary: Optional[str] = ""
     date_applied: Optional[str] = None

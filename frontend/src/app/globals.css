@@ -143,6 +143,9 @@ body {
   .resume-print-layout p,
   .resume-print-layout li {
     color: #222222 !important;
+    white-space: normal !important;
+    word-wrap: break-word !important;
+    overflow-wrap: break-word !important;
   }
 
   /* Prevent elements from breaking mid-page */

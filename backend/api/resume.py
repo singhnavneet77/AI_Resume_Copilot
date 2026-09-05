@@ -1,5 +1,5 @@
 import json
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, Response
 from sqlalchemy.orm import Session
 from pydantic import BaseModel
 from typing import List, Optional, Dict, Any
@@ -11,6 +11,7 @@ from backend.database.models import (
 from backend.auth.helpers import get_current_user
 from backend.services.rag_service import rag_service
 from backend.services.llm_service import llm_service, UserLLMCredentials
+from backend.services.pdf_service import generate_resume_pdf
 
 router = APIRouter(prefix="/resume", tags=["resume"])
 
@@ -80,6 +81,9 @@ def generate_tailored_resume(
     tailor_payload = {
         "user_name": user.name,
         "user_email": user.email,
+        "user_phone": user.phone or "",
+        "user_github": user.github or "",
+        "user_linkedin": user.linkedin or "",
         "master_profile": profile_dict,
         "most_relevant_historical_items": retrieved_context
     }
@@ -233,6 +237,33 @@ def get_resume_version(resume_id: int, user: User = Depends(get_current_user), d
         "created_at": resume.created_at,
         "ats_report": ats_data
     }
+
+
+@router.get("/{resume_id}/pdf")
+def export_resume_pdf(resume_id: int, user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    resume = db.query(ResumeVersion).filter(ResumeVersion.id == resume_id, ResumeVersion.user_id == user.id).first()
+    if not resume:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Resume version not found.")
+
+    try:
+        resume_json = json.loads(resume.resume_json)
+        pdf_bytes = generate_resume_pdf(resume_json, template_name=resume.template_name or "modern")
+        candidate_name = resume_json.get("summary", {}).get("name", "Resume").strip()
+        safe_name = "".join(c for c in candidate_name if c.isalnum() or c in (" ", "_", "-")).strip().replace(" ", "_")
+        filename = f"{safe_name or 'Resume'}.pdf"
+        
+        return Response(
+            content=pdf_bytes,
+            media_type="application/pdf",
+            headers={
+                "Content-Disposition": f'attachment; filename="{filename}"'
+            }
+        )
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to generate resume PDF: {str(e)}"
+        )
 
 
 @router.delete("/{resume_id}")

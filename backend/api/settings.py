@@ -68,9 +68,7 @@ def update_user_settings(
     if data.preferred_provider is not None:
         current_user.preferred_provider = data.preferred_provider
 
-    # Only overwrite a stored key if the client actually sent a new,
-    # non-masked value. Sending back the masked placeholder should not
-    # clobber the real stored key.
+
     if data.gemini_api_key is not None and "•" not in data.gemini_api_key:
         current_user.gemini_api_key = data.gemini_api_key or None
     if data.openai_api_key is not None and "•" not in data.openai_api_key:

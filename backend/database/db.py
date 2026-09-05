@@ -3,20 +3,17 @@ from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
 from backend.config import settings
 
-# For SQLite, we require connect_args={"check_same_thread": False}
+
 connect_args = {}
 engine_kwargs = {}
 if settings.DATABASE_URL.startswith("sqlite"):
     connect_args = {"check_same_thread": False}
 else:
-    # PostgreSQL (or any real server-based DB): use a pooled, health-checked
-    # connection pool so the app survives idle-connection drops / restarts
-    # of the database (common with managed Postgres and Docker).
     engine_kwargs = {
-        "pool_pre_ping": True,   # verify connection liveness before use
+        "pool_pre_ping": True, 
         "pool_size": 10,
         "max_overflow": 20,
-        "pool_recycle": 1800,    # recycle connections every 30 min
+        "pool_recycle": 1800, 
     }
 
 engine = create_engine(

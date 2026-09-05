@@ -41,6 +41,9 @@ class AchievementSchema(BaseModel):
     content: str
 
 class MasterProfileResponse(BaseModel):
+    phone: Optional[str] = None
+    github: Optional[str] = None
+    linkedin: Optional[str] = None
     education: List[EducationSchema]
     skills: List[SkillSchema]
     projects: List[ProjectSchema]
@@ -48,6 +51,9 @@ class MasterProfileResponse(BaseModel):
     achievements: List[AchievementSchema]
 
 class ProfileUpdate(BaseModel):
+    phone: Optional[str] = None
+    github: Optional[str] = None
+    linkedin: Optional[str] = None
     education: List[EducationSchema]
     skills: List[SkillSchema]
     projects: List[ProjectSchema]
@@ -58,6 +64,9 @@ class ProfileUpdate(BaseModel):
 @router.get("", response_model=MasterProfileResponse)
 def get_profile(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     return {
+        "phone": current_user.phone,
+        "github": current_user.github,
+        "linkedin": current_user.linkedin,
         "education": current_user.education,
         "skills": current_user.skills,
         "projects": current_user.projects,
@@ -155,6 +164,14 @@ def update_profile(
             new_ach = Achievement(user_id=current_user.id, **ach.model_dump())
             db.add(new_ach)
             
+        # Update personal contact details on User
+        if profile_data.phone is not None:
+            current_user.phone = profile_data.phone
+        if profile_data.github is not None:
+            current_user.github = profile_data.github
+        if profile_data.linkedin is not None:
+            current_user.linkedin = profile_data.linkedin
+
         db.commit()
         db.refresh(current_user)
         
@@ -162,6 +179,9 @@ def update_profile(
         background_tasks.add_task(index_profile_in_qdrant, current_user.id)
         
         return {
+            "phone": current_user.phone,
+            "github": current_user.github,
+            "linkedin": current_user.linkedin,
             "education": current_user.education,
             "skills": current_user.skills,
             "projects": current_user.projects,

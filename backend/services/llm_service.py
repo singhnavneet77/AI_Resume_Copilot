@@ -17,10 +17,7 @@ class UserLLMCredentials:
         gemini_api_key: Optional[str] = None,
         openai_api_key: Optional[str] = None,
     ):
-        # Fall back to system-wide defaults (from environment/.env) ONLY when
-        # the user hasn't configured their own key. This fallback is safe
-        # because it's identical for every user, not one user's secret
-        # leaking into another user's request.
+
         self.provider = provider or settings.PREFERRED_PROVIDER
         self.gemini_api_key = gemini_api_key or settings.GEMINI_API_KEY
         self.openai_api_key = openai_api_key or settings.OPENAI_API_KEY
@@ -82,7 +79,6 @@ class LLMService:
             except Exception as e:
                 print(f"OpenAI API execution error: {e}")
 
-        # If no LLM configured, raise exception (caught by callers to fall back to mock)
         raise ValueError("No LLM credentials set or execution failed.")
 
     def tailor_resume(self, user_profile: Dict[str, Any], job_description: str, creds: Optional[UserLLMCredentials] = None) -> Dict[str, Any]:
@@ -117,6 +113,9 @@ class LLMService:
 
         candidate_name = user_profile.get("user_name", "")
         candidate_email = user_profile.get("user_email", "")
+        candidate_phone = user_profile.get("user_phone", "")
+        candidate_github = user_profile.get("user_github", "")
+        candidate_linkedin = user_profile.get("user_linkedin", "")
         master_profile = user_profile.get("master_profile", user_profile)
         relevant_items = user_profile.get("most_relevant_historical_items", [])
 
@@ -124,6 +123,9 @@ class LLMService:
 
 CANDIDATE NAME: {candidate_name}
 CANDIDATE EMAIL: {candidate_email}
+CANDIDATE PHONE: {candidate_phone}
+CANDIDATE GITHUB: {candidate_github}
+CANDIDATE LINKEDIN: {candidate_linkedin}
 
 CANDIDATE'S ACTUAL MASTER PROFILE DATA (Use ONLY this data — do NOT invent any other companies, degrees, or skills):
 {json.dumps(master_profile, indent=2)}
@@ -135,7 +137,7 @@ TARGET JOB DESCRIPTION:
 {job_description}
 
 INSTRUCTIONS:
-- Use candidate name "{candidate_name}" and email "{candidate_email}".
+- Use candidate name "{candidate_name}", email "{candidate_email}", phone "{candidate_phone}", github "{candidate_github}", and linkedin "{candidate_linkedin}".
 - Include all experiences from the master profile. Rewrite bullets with JD keywords.
 - Include all projects from the master profile.
 - Include all skills from the master profile, categorized and sorted by JD relevance.
@@ -148,9 +150,9 @@ Return ONLY a JSON object matching this schema:
   "summary": {{
     "name": "{candidate_name}",
     "email": "{candidate_email}",
-    "phone": "",
-    "github": "",
-    "linkedin": "",
+    "phone": "{candidate_phone}",
+    "github": "{candidate_github}",
+    "linkedin": "{candidate_linkedin}",
     "professional_summary": "Tailored 3-4 sentence professional summary based on candidate's actual background and target JD"
   }},
   "skills": [
@@ -391,7 +393,6 @@ Return a JSON document with this exact format:
         """
         name = profile.get("user_name", "Candidate")
         email = profile.get("user_email", "candidate@example.com")
-        # master_profile holds the actual lists of education, skills, projects, experience, achievements
         mp = profile.get("master_profile", profile)
 
         # 1. Build skills from actual user profile
@@ -478,13 +479,17 @@ Return a JSON document with this exact format:
             f"Passionate about leveraging core competencies to excel in target opportunities."
         )
 
+        phone = profile.get("user_phone", "")
+        github = profile.get("user_github", "")
+        linkedin = profile.get("user_linkedin", "")
+
         return {
             "summary": {
                 "name": name,
                 "email": email,
-                "phone": "",
-                "github": "",
-                "linkedin": "",
+                "phone": phone,
+                "github": github,
+                "linkedin": linkedin,
                 "professional_summary": summary_text
             },
             "skills": skills_output,

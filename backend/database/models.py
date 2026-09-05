@@ -20,6 +20,11 @@ class User(Base):
     openai_api_key = Column(String, nullable=True)
     preferred_provider = Column(String, nullable=False, default="gemini")
 
+    # Personal contact details for resumes
+    phone = Column(String, nullable=True)
+    github = Column(String, nullable=True)
+    linkedin = Column(String, nullable=True)
+
     # Relationships
     education = relationship("Education", back_populates="user", cascade="all, delete-orphan")
     skills = relationship("Skill", back_populates="user", cascade="all, delete-orphan")
@@ -49,7 +54,7 @@ class Skill(Base):
     id = Column(Integer, primary_key=True, index=True)
     user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
     skill_name = Column(String, nullable=False)
-    category = Column(String, nullable=False)  # e.g., Languages, Frameworks, Libraries, Tools
+    category = Column(String, nullable=False)  # Languages, Frameworks, Libraries, Tools
 
     user = relationship("User", back_populates="skills")
 
@@ -61,7 +66,7 @@ class Project(Base):
     user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
     title = Column(String, nullable=False)
     description = Column(Text, nullable=False)
-    tech_stack = Column(String, nullable=True)  # Comma-separated list (e.g. Python, FastAPI, React)
+    tech_stack = Column(String, nullable=True)  # (Python, FastAPI, React)
     github_link = Column(String, nullable=True)
 
     user = relationship("User", back_populates="projects")
@@ -98,7 +103,7 @@ class ResumeVersion(Base):
     user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
     jd_title = Column(String, nullable=True)
     jd_text = Column(Text, nullable=True)
-    resume_json = Column(Text, nullable=False)  # Stored as serialized JSON string
+    resume_json = Column(Text, nullable=False) 
     pdf_url = Column(String, nullable=True)
     template_name = Column(String, default="modern")
     created_at = Column(DateTime, default=datetime.datetime.utcnow)
@@ -113,8 +118,8 @@ class ATSReport(Base):
     id = Column(Integer, primary_key=True, index=True)
     resume_id = Column(Integer, ForeignKey("resume_versions.id", ondelete="CASCADE"), unique=True, nullable=False)
     score = Column(Integer, nullable=False)
-    missing_skills = Column(Text, nullable=True)       # Comma-separated or serialized JSON list
-    improvement_suggestions = Column(Text, nullable=True) # Serialized JSON list
-    details_json = Column(Text, nullable=True)            # Breakdown components scores
+    missing_skills = Column(Text, nullable=True)   
+    improvement_suggestions = Column(Text, nullable=True) 
+    details_json = Column(Text, nullable=True)           
 
     resume = relationship("ResumeVersion", back_populates="ats_report")
